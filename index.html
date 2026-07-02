@@ -2,11 +2,13 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>TOKYO FLIGHT - 実写フライトシミュレーター</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+    touch-action: none; overscroll-behavior: none; -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
   #app { position: fixed; inset: 0; }
   canvas.webgl { display: block; }
 
@@ -104,6 +106,77 @@
   #crashOverlay { display: none; background: rgba(28, 5, 5, 0.8); }
   #crashOverlay h2 { color: #ff6b5e; }
   .smallnote { font-size: 11px; color: #6f90ad; max-width: 620px; margin: 0 auto 10px; }
+
+  /* ===== タッチ操作UI（スマホ・タブレット）===== */
+  #touchUI { position: absolute; inset: 0; display: none; pointer-events: none; z-index: 7; }
+  body.touch #touchUI { display: block; }
+  body.touch #hint { display: none; }
+  body.touch #credits { font-size: 8px; max-width: 40vw; }
+  #stickZone { position: absolute; left: 0; bottom: 0; width: 46%; height: 64%; pointer-events: auto; }
+  #stickBase {
+    position: absolute; width: 128px; height: 128px; margin: -64px 0 0 -64px;
+    border-radius: 50%; border: 2px solid rgba(140, 200, 255, 0.55);
+    background: rgba(10, 22, 36, 0.35); display: none;
+  }
+  #stickKnob {
+    position: absolute; left: 50%; top: 50%; width: 58px; height: 58px; margin: -29px 0 0 -29px;
+    border-radius: 50%; background: rgba(140, 200, 255, 0.7);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+  }
+  #stickHint {
+    position: absolute; left: max(20px, env(safe-area-inset-left)); bottom: 20px;
+    color: rgba(180, 215, 245, 0.55); font-size: 11px; pointer-events: none;
+  }
+  #thrZone {
+    position: absolute; right: max(10px, env(safe-area-inset-right)); bottom: 78px;
+    width: 60px; height: 42%; min-height: 140px; pointer-events: auto;
+    background: rgba(10, 22, 36, 0.5); border: 1px solid rgba(140, 200, 255, 0.4);
+    border-radius: 14px; overflow: hidden;
+  }
+  #thrFillV {
+    position: absolute; bottom: 0; left: 0; right: 0; height: 0%;
+    background: linear-gradient(0deg, #37c871 0%, #ffd23c 60%, #ff6b3c 100%); opacity: 0.75;
+  }
+  #thrZone .tlabel { position: absolute; top: 6px; width: 100%; text-align: center; color: #cfe8ff; font-size: 10px; }
+  #touchBtns {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    bottom: max(10px, env(safe-area-inset-bottom));
+    display: flex; gap: 8px; pointer-events: auto;
+  }
+  .tbtn {
+    min-width: 44px; padding: 10px 10px; border-radius: 22px;
+    border: 1px solid rgba(140, 200, 255, 0.45); background: rgba(10, 22, 36, 0.55);
+    color: #dff0ff; font-size: 12px; font-weight: 700; text-align: center;
+    touch-action: manipulation;
+  }
+  .tbtn:active { background: rgba(90, 170, 240, 0.5); }
+  body.touch #instruments { transform: scale(0.78); transform-origin: top left; left: max(8px, env(safe-area-inset-left)); top: 8px; min-width: 200px; }
+  body.touch #mission { transform: scale(0.78); transform-origin: top right; right: max(8px, env(safe-area-inset-right)); top: 8px; }
+  @media (max-height: 560px) {
+    body.touch #horizonBox { display: none; }
+    body.touch #minimapBox { transform: scale(0.62); transform-origin: bottom right; right: 82px; bottom: 6px; }
+  }
+  @media (min-height: 561px) {
+    body.touch #horizonBox { right: 82px; bottom: 210px; transform: scale(0.85); transform-origin: bottom right; }
+    body.touch #minimapBox { right: 82px; bottom: 10px; transform: scale(0.85); transform-origin: bottom right; }
+  }
+  body.touch .overlay table { display: none; }
+  body.touch .overlay h1 { font-size: 28px; }
+  body.touch .overlay { padding: 12px; justify-content: flex-start; }
+  body.touch .overlay > :first-child { margin-top: max(8px, env(safe-area-inset-top)); }
+  #touchGuide { display: none; }
+  body.touch #touchGuide { display: block; color: #a9c8e2; font-size: 13px; margin: 0 12px 12px; max-width: 560px; }
+  #rotateHint { display: none; }
+  @media (orientation: portrait) {
+    body.touch #rotateHint { display: block; color: #ffd76a; font-size: 13px; margin-bottom: 8px; }
+    /* 縦持ち: スロットルを小さく、計器の重なりを解消 */
+    body.touch #thrZone { height: 24%; min-height: 130px; bottom: 130px; }
+    body.touch #horizonBox { display: none; }
+    body.touch #minimapBox { transform: scale(0.6); transform-origin: bottom right; right: 76px; bottom: 66px; }
+    body.touch #touchBtns { gap: 6px; }
+    body.touch .tbtn { min-width: 38px; padding: 9px 7px; font-size: 11px; }
+  }
+  body.touch #credits { bottom: 64px; }
 </style>
 </head>
 <body>
@@ -142,6 +215,22 @@
   <span id="googleAttr"></span>
 </div>
 
+<div id="touchUI">
+  <div id="stickZone">
+    <div id="stickHint">左下エリアをドラッグ＝操縦スティック</div>
+    <div id="stickBase"><div id="stickKnob"></div></div>
+  </div>
+  <div id="thrZone"><div id="thrFillV"></div><div class="tlabel">出力</div></div>
+  <div id="touchBtns">
+    <div class="tbtn" data-act="KeyF">FLAP</div>
+    <div class="tbtn" id="btnBrake">BRK</div>
+    <div class="tbtn" data-act="KeyC">CAM</div>
+    <div class="tbtn" data-act="KeyL">地名</div>
+    <div class="tbtn" data-act="KeyR">RST</div>
+    <div class="tbtn" data-act="KeyP">❚❚</div>
+  </div>
+</div>
+
 <div id="labels"></div>
 <div id="message"></div>
 <div id="stall">STALL</div>
@@ -150,6 +239,8 @@
 <div id="startOverlay" class="overlay">
   <h1>TOKYO <span class="thin">FLIGHT</span></h1>
   <p>実写の東京を飛ぶ。羽田空港 C滑走路（34R）からジェット練習機で離陸し、<br>レインボーブリッジ・東京タワー・スカイツリーを巡る10個のリングをくぐって戻ってこよう。</p>
+  <p id="rotateHint">📱 端末を横向き（ランドスケープ）にすると遊びやすくなります</p>
+  <p id="touchGuide">📱 タッチ操作 — 画面左下をドラッグ＝操縦スティック（<b>下に引くと機首上げ</b>・地上では左右で方向転換）/ 右端の縦バー＝スロットル / 下のボタン＝フラップ・ブレーキ・カメラ切替など。<br>離陸のコツ: FLAP → スロットル全開 → 250km/hでスティックを下に引く</p>
   <div class="optRow">
     <label>建物
       <select id="optBldg">
@@ -215,6 +306,11 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const deg = r => r * 180 / Math.PI;
 const rad = d => d * Math.PI / 180;
 
+// タッチデバイス判定（スマホ・タブレット）。?touch=1 で強制有効化（動作確認用）
+const IS_TOUCH = matchMedia('(pointer: coarse)').matches ||
+  new URLSearchParams(location.search).has('touch');
+if (IS_TOUCH) document.body.classList.add('touch');
+
 // 羽田空港 C滑走路 16L/34R（OpenStreetMap実測: 34R末端 → 16L末端）
 const RWY_A = { lat: 35.53923, lon: 139.80546 }; // 34R スレッショルド（南東端）
 const RWY_B = { lat: 35.56633, lon: 139.78623 }; // 16L 側（北西端）
@@ -271,11 +367,32 @@ scene.background = HAZE.clone();
 const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 1.5, 250000);
 const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
 renderer.setSize(innerWidth, innerHeight);
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(devicePixelRatio, IS_TOUCH ? 1.8 : 2)); // モバイルGPU負荷を抑える
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.1;
 renderer.domElement.className = 'webgl';
 document.getElementById('app').appendChild(renderer.domElement);
+
+// 機体PBR用環境マップ（コンテキスト復帰時にも再生成できるよう関数化）
+let envEquirect = null;
+function buildEnvironment() {
+  if (!envEquirect) return;
+  try {
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromEquirectangular(envEquirect).texture;
+    pmrem.dispose();
+  } catch (_) {}
+}
+// iOSのメモリ圧等でWebGLコンテキストが失われた場合のハンドリング
+renderer.domElement.addEventListener('webglcontextlost', () => {
+  sim.paused = true;
+  try { showMessage('描画が中断されました。復帰を待っています…', 8000); } catch (_) {}
+});
+renderer.domElement.addEventListener('webglcontextrestored', () => {
+  buildEnvironment();
+  sim.paused = false;
+  try { showMessage('描画を再開しました', 2000); } catch (_) {}
+});
 
 // 空（グラデーションドーム）と太陽・環境マップ
 {
@@ -324,9 +441,8 @@ document.getElementById('app').appendChild(renderer.domElement);
   const envTex = new THREE.CanvasTexture(ecv);
   envTex.mapping = THREE.EquirectangularReflectionMapping;
   envTex.colorSpace = THREE.SRGBColorSpace;
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  scene.environment = pmrem.fromEquirectangular(envTex).texture;
-  pmrem.dispose();
+  envEquirect = envTex;
+  buildEnvironment();
 }
 scene.add(new THREE.HemisphereLight(0xcfe4ff, 0x8a887e, 1.0));
 const sunLight = new THREE.DirectionalLight(0xfff2dd, 2.0);
@@ -430,7 +546,7 @@ const streamer = {
   queue: [],
   active: 0,
   MAX_ACTIVE: 16,
-  SPLIT: 2.6,                // 距離 < タイルサイズ×この係数 で分割
+  SPLIT: IS_TOUCH ? 2.2 : 2.6, // 距離 < タイルサイズ×この係数 で分割（モバイルは軽量化）
   MIN_Z: 8,
   builtCount: 0,
   frustum: new THREE.Frustum(),
@@ -713,10 +829,10 @@ function makeTilesRenderer(url, errorTarget) {
     t.parseQueue = tilesets[0].parseQueue;
     if (tilesets[0].processNodeQueue) t.processNodeQueue = tilesets[0].processNodeQueue;
   } else {
-    // 10区で共有するため既定より拡大
+    // 10区で共有するため既定より拡大（モバイルはメモリ上限が厳しいので控えめに）
     try {
-      t.lruCache.maxSize = 1400;
-      t.lruCache.minSize = 900;
+      t.lruCache.maxSize = IS_TOUCH ? 700 : 1400;
+      t.lruCache.minSize = IS_TOUCH ? 450 : 900;
       t.downloadQueue.maxJobs = 12;
       t.parseQueue.maxJobs = 4;
       // 既定はrequestAnimationFrame駆動＝非表示タブで停止するため、タイマー駆動に変更
@@ -733,7 +849,7 @@ function makeTilesRenderer(url, errorTarget) {
 function initPlateau(lodKey) {
   for (const [name, url] of PLATEAU_WARDS[lodKey]) {
     try {
-      const t = makeTilesRenderer(url, 16);
+      const t = makeTilesRenderer(url, IS_TOUCH ? 24 : 16); // モバイルは粗めのLODで軽量化
       t.addEventListener('load-error', e => console.warn('PLATEAU load-error', name, e));
     } catch (e) { console.warn('PLATEAU init failed', name, e); }
   }
@@ -966,7 +1082,7 @@ const clouds = [];
   }
   const tex = new THREE.CanvasTexture(cv);
   function h2(a, b) { let n = (Math.imul(a, 374761393) + Math.imul(b, 668265263)) | 0; n = Math.imul(n ^ (n >>> 13), 1274126177); return ((n ^ (n >>> 16)) >>> 0) / 4294967296; }
-  for (let i = 0; i < 70; i++) {
+  for (let i = 0; i < (IS_TOUCH ? 40 : 70); i++) {
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0.8, depthWrite: false }));
     const scl = 600 + h2(i, 77) * 1100;
     sp.scale.set(scl, scl * 0.4, 1);
@@ -1015,6 +1131,8 @@ const sim = {
 };
 const ctl = { elevator: 0, aileron: 0, rudder: 0, brake: 0 };
 const keys = {};
+// タッチ入力（バーチャルスティック・スロットルスライダー）
+const touch = { pitch: 0, roll: 0, thr: null, brake: false };
 
 function spawnPose() {
   const along = 200;
@@ -1040,6 +1158,11 @@ function resetFlight() {
   sim.ringIndex = 0;
   sim.paused = false;
   ctl.elevator = ctl.aileron = ctl.rudder = 0;
+  touch.thr = null; touch.pitch = 0; touch.roll = 0; touch.brake = false;
+  const tf = document.getElementById('thrFillV');
+  if (tf) tf.style.height = '0%';
+  const bb = document.getElementById('btnBrake');
+  if (bb) bb.style.background = '';
   hudEls.pause.style.display = 'none';
   hudEls.timer.textContent = '00:00';
   for (const r of rings) {
@@ -1072,14 +1195,17 @@ function noise01(seed) {
 }
 
 function physics(dt) {
-  const tgtE = (keys['ArrowUp'] ? -1 : 0) + (keys['ArrowDown'] ? 1 : 0);
-  const tgtA = (keys['ArrowRight'] ? 1 : 0) + (keys['ArrowLeft'] ? -1 : 0);
-  const tgtR = (keys['KeyD'] ? 1 : 0) + (keys['KeyA'] ? -1 : 0);
+  const tgtE = clamp((keys['ArrowUp'] ? -1 : 0) + (keys['ArrowDown'] ? 1 : 0) + touch.pitch, -1, 1);
+  const tgtA = clamp((keys['ArrowRight'] ? 1 : 0) + (keys['ArrowLeft'] ? -1 : 0) + touch.roll, -1, 1);
+  // 地上ではスティック左右がステアリングを兼ねる（タッチ操作用）
+  const tgtR = clamp((keys['KeyD'] ? 1 : 0) + (keys['KeyA'] ? -1 : 0) + (sim.onGround ? touch.roll : 0), -1, 1);
   const k = Math.min(1, dt * 7);
   ctl.elevator += (tgtE - ctl.elevator) * k;
   ctl.aileron += (tgtA - ctl.aileron) * k;
   ctl.rudder += (tgtR - ctl.rudder) * k;
-  ctl.brake = keys['KeyB'] ? 1 : 0;
+  ctl.brake = (keys['KeyB'] || touch.brake) ? 1 : 0;
+  if (keys['KeyW'] || keys['KeyS']) touch.thr = null; // キーボード操作でスライダーの支配を解除
+  if (touch.thr !== null) sim.throttle = touch.thr;   // スライダーは絶対値指定
   if (keys['KeyW']) sim.throttle = clamp(sim.throttle + dt * 0.35, 0, 1); // ジェットのスプール
   if (keys['KeyS']) sim.throttle = clamp(sim.throttle - dt * 0.5, 0, 1);
   if (sim.throttle > 0.1) sim.timerOn = true;
@@ -1486,6 +1612,10 @@ function updateHUD() {
     hudEls.flaps.textContent = FLAP_NAME[sim.flaps];
     hudEls.thr.textContent = Math.round(sim.throttle * 100);
     hudEls.thrFill.style.width = (sim.throttle * 100) + '%';
+    if (IS_TOUCH && touch.thr === null) {
+      const tf = document.getElementById('thrFillV');
+      if (tf) tf.style.height = (sim.throttle * 100) + '%';
+    }
     if (sim.ringIndex < rings.length) {
       const r = rings[sim.ringIndex];
       _tmpV.copy(r.pos).sub(sim.pos);
@@ -1547,6 +1677,14 @@ function initAudio() {
     };
     rumbleGain = mk('lowpass', 300);
     windGain = mk('bandpass', 900, 0.6);
+    if (AC.state !== 'running') AC.resume(); // iOS Safari対策
+    // iOSは通話・Siri・画面ロック後に非標準の 'interrupted' 状態になるため 'running' 以外は常に復帰を試みる
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && AC && AC.state !== 'running') AC.resume();
+    });
+    document.addEventListener('pointerdown', () => {
+      if (AC && AC.state !== 'running') AC.resume();
+    }, { capture: true, passive: true });
   } catch (e) { AC = null; }
 }
 function updateAudio() {
@@ -1589,13 +1727,10 @@ function playCrashSound() {
 /* ============================================================
    入力
 ============================================================ */
-addEventListener('keydown', e => {
-  if (e.target && e.target.matches && e.target.matches('input, select, textarea')) return; // 設定入力中は奪わない
-  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
-  if (keys[e.code]) return;
-  keys[e.code] = true;
+// キーボードとタッチボタンで共有するアクション
+function uiAction(code) {
   if (!sim.running) return;
-  switch (e.code) {
+  switch (code) {
     case 'KeyF':
       sim.flaps = (sim.flaps + 1) % 3;
       showMessage(`フラップ ${FLAP_NAME[sim.flaps]}`, 1200);
@@ -1605,7 +1740,7 @@ addEventListener('keydown', e => {
       showMessage(CAM_NAMES[camMode], 1200);
       break;
     case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4':
-      camMode = Number(e.code.slice(-1)) - 1;
+      camMode = Number(code.slice(-1)) - 1;
       showMessage(CAM_NAMES[camMode], 1200);
       break;
     case 'KeyR': resetFlight(); break;
@@ -1631,12 +1766,108 @@ addEventListener('keydown', e => {
       break;
     }
   }
+}
+addEventListener('keydown', e => {
+  if (e.target && e.target.matches && e.target.matches('input, select, textarea')) return; // 設定入力中は奪わない
+  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
+  if (keys[e.code]) return;
+  keys[e.code] = true;
+  uiAction(e.code);
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
 // フォーカス喪失でキーが押しっぱなしになるのを防ぐ
 function releaseAllKeys() { for (const k in keys) keys[k] = false; }
 addEventListener('blur', releaseAllKeys);
 document.addEventListener('visibilitychange', () => { if (document.hidden) releaseAllKeys(); });
+
+/* ============================================================
+   タッチ操作（バーチャルスティック・スロットル・ボタン）
+============================================================ */
+if (IS_TOUCH) {
+  const stickZone = document.getElementById('stickZone');
+  const stickBase = document.getElementById('stickBase');
+  const stickKnob = document.getElementById('stickKnob');
+  const STICK_R = 52;
+  let stickId = null, baseX = 0, baseY = 0;
+  stickZone.addEventListener('pointerdown', e => {
+    if (stickId !== null) return;
+    stickId = e.pointerId;
+    try { stickZone.setPointerCapture(e.pointerId); } catch (_) {}
+    baseX = e.clientX; baseY = e.clientY;
+    // ゾーンはビューポート上端から始まらないため、ゾーンローカル座標に変換して配置
+    const zr = stickZone.getBoundingClientRect();
+    stickBase.style.display = 'block';
+    stickBase.style.left = (baseX - zr.left) + 'px';
+    stickBase.style.top = (baseY - zr.top) + 'px';
+    stickKnob.style.transform = 'translate(0px, 0px)';
+    e.preventDefault();
+  });
+  stickZone.addEventListener('pointermove', e => {
+    if (e.pointerId !== stickId) return;
+    let dx = e.clientX - baseX, dy = e.clientY - baseY;
+    const len = Math.hypot(dx, dy);
+    if (len > STICK_R) { dx *= STICK_R / len; dy *= STICK_R / len; }
+    stickKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+    touch.roll = dx / STICK_R;
+    touch.pitch = dy / STICK_R; // 下に引く＝機首上げ
+  });
+  const stickEnd = e => {
+    if (e.pointerId !== stickId) return;
+    stickId = null;
+    touch.roll = 0; touch.pitch = 0;
+    stickBase.style.display = 'none';
+  };
+  stickZone.addEventListener('pointerup', stickEnd);
+  stickZone.addEventListener('pointercancel', stickEnd);
+
+  const thrZone = document.getElementById('thrZone');
+  const thrFillV = document.getElementById('thrFillV');
+  let thrId = null;
+  const setThr = e => {
+    const r = thrZone.getBoundingClientRect();
+    const v = clamp(1 - (e.clientY - r.top) / r.height, 0, 1);
+    touch.thr = v;
+    thrFillV.style.height = (v * 100) + '%';
+  };
+  thrZone.addEventListener('pointerdown', e => {
+    if (thrId !== null) return;
+    thrId = e.pointerId;
+    try { thrZone.setPointerCapture(e.pointerId); } catch (_) {}
+    setThr(e);
+    e.preventDefault();
+  });
+  thrZone.addEventListener('pointermove', e => { if (e.pointerId === thrId) setThr(e); });
+  const thrEnd = e => { if (e.pointerId === thrId) thrId = null; };
+  thrZone.addEventListener('pointerup', thrEnd);
+  thrZone.addEventListener('pointercancel', thrEnd);
+
+  for (const b of document.querySelectorAll('.tbtn[data-act]')) {
+    b.addEventListener('pointerdown', e => { e.preventDefault(); uiAction(b.dataset.act); });
+  }
+  const brakeBtn = document.getElementById('btnBrake');
+  brakeBtn.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    try { brakeBtn.setPointerCapture(e.pointerId); } catch (_) {}
+    touch.brake = true;
+    brakeBtn.style.background = 'rgba(240,110,90,0.6)';
+  });
+  const brakeEnd = () => { touch.brake = false; brakeBtn.style.background = ''; };
+  brakeBtn.addEventListener('pointerup', brakeEnd);
+  brakeBtn.addEventListener('pointercancel', brakeEnd);
+
+  // 画面端からの戻るスワイプ（iOS/Android）でゲームが消えるのを防ぐ履歴トラップ
+  history.pushState({ tf: 1 }, '');
+  addEventListener('popstate', () => history.pushState({ tf: 1 }, ''));
+}
+
+// 飛行中の画面自動ロックを防ぐ（対応ブラウザのみ・非対応なら無害に無視）
+let wakeLock = null;
+async function keepAwake() {
+  try { wakeLock = await navigator.wakeLock?.request('screen'); } catch (_) {}
+}
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && sim.running) keepAwake();
+});
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
@@ -1744,6 +1975,7 @@ startBtn.addEventListener('click', async () => {
   if (!bootDone) return;
   document.getElementById('startOverlay').style.display = 'none';
   initAudio();
+  keepAwake(); // ユーザー操作起点でウェイクロック取得
   sim.paused = false; // Hキーで開いた説明を閉じた場合は再開
   hudEls.pause.style.display = 'none';
   if (!sim.running) {
@@ -1839,7 +2071,7 @@ animate();
 ============================================================ */
 window.__debug = {
   sim, ctl, keys, rings, streamer, demStore, THREE,
-  plane, planeModel, camera, tilesets,
+  plane, planeModel, camera, tilesets, touch,
   llToENU, enuToLL, groundHeightENU,
   setCamPose(px, py, pz, tx, ty, tz, fov = 45) {
     camMode = 9;
