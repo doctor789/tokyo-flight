@@ -1353,17 +1353,17 @@ function physics(dt) {
   vel.addScaledVector(_force, dt / AIR.mass);
 
   // 回転（機体軸）: オートトリム＋強めの減衰でFBW的な安定感
-  const qn = clamp(qd / (0.5 * 1.225 * 95 * 95), 0, 2.6); // 基準95m/s
+  const qn = clamp(qd / (0.5 * 1.225 * 95 * 95), 0.4, 2.6); // 基準95m/s（下限を設け低速でも曲がれるように）
   const clNeed = AIR.mass * AIR.g / Math.max(qd * AIR.S, 1);
   // 昇降率フィードバック付きオートトリム: 手放しで水平飛行へ収束（FBW風アシスト）
   const vsAdj = sim.onGround ? 0 : clamp(-vel.y * 0.0014, -0.018, 0.018);
   const alphaTrim = clamp((clNeed - AIR.CL0 - FLAP_CL[sim.flaps]) / AIR.CLa, rad(-2), rad(9)) + vsAdj;
   let pAcc = ctl.elevator * 3.2 * qn - (alpha - alphaTrim) * 4.5 * qn - angVel.x * (4.5 + qn * 4.0);
   let yAcc = -ctl.rudder * 1.7 * qn - beta * 3.2 * qn - angVel.y * (1.6 + qn * 1.4);
-  let rAcc = -ctl.aileron * 9.5 * qn - beta * 1.0 * qn - angVel.z * (3.8 + qn * 2.6);
+  let rAcc = -ctl.aileron * 15 * qn - beta * 1.0 * qn - angVel.z * (3.2 + qn * 2.2);
   if (!sim.onGround) {
     _euler.setFromQuaternion(q, 'YXZ');
-    rAcc += -_euler.z * 1.4 * qn * (1 - Math.abs(ctl.aileron) * 0.85);
+    rAcc += -_euler.z * 1.4 * qn * (1 - Math.abs(ctl.aileron) * 0.95);
   }
   if (sim.stalled) {
     const t3 = (performance.now() * 3) | 0;
