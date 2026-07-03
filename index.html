@@ -79,33 +79,106 @@
     position: absolute; inset: 0; display: flex; flex-direction: column;
     align-items: center; justify-content: center; text-align: center;
     background: linear-gradient(180deg, rgba(3,8,16,0.88), rgba(6,16,30,0.92));
-    color: #eaf5ff; z-index: 20; overflow-y: auto;
+    color: #eaf5ff; z-index: 20; overflow-y: auto; touch-action: pan-y;
   }
-  .overlay h1 { font-size: 38px; margin-bottom: 4px; letter-spacing: 3px; }
-  .overlay h1 .thin { font-weight: 300; color: #7fc4ff; }
+  .titleBadge {
+    font-size: 10px; letter-spacing: 5px; color: #7fc4ff; margin-bottom: 14px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .titleBadge::before, .titleBadge::after {
+    content: ''; width: 42px; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(127,212,255,0.7));
+  }
+  .titleBadge::after { background: linear-gradient(90deg, rgba(127,212,255,0.7), transparent); }
+  .overlay h1 {
+    font-size: 56px; font-weight: 800; margin-bottom: 12px; letter-spacing: 8px; line-height: 1;
+    text-shadow: 0 0 34px rgba(56,168,240,0.4), 0 2px 6px rgba(0,0,0,0.6);
+  }
+  .overlay h1 .thin { font-weight: 200; color: #7fd4ff; }
+  .overlay .tagline { font-size: 14px; color: #a9c8e2; letter-spacing: 2px; margin-bottom: 34px; }
   .overlay h2 { font-size: 26px; margin-bottom: 10px; }
   .overlay p { color: #a9c8e2; margin-bottom: 14px; font-size: 13px; }
-  .overlay table { border-collapse: collapse; margin: 0 auto 14px; font-size: 13px; }
-  .overlay td { padding: 3px 14px; text-align: left; }
-  .overlay td.key { color: #ffd76a; font-weight: 700; white-space: nowrap; }
   .overlay .btn {
-    padding: 12px 46px; font-size: 18px; font-weight: 700; color: #04121f;
+    padding: 13px 52px; font-size: 18px; font-weight: 700; color: #04121f;
     background: linear-gradient(180deg, #7fd4ff, #38a8f0); border: none; border-radius: 30px;
-    cursor: pointer; box-shadow: 0 4px 18px rgba(56,168,240,0.45); margin-top: 4px;
+    cursor: pointer; box-shadow: 0 4px 22px rgba(56,168,240,0.5); margin-top: 6px;
   }
   .overlay .btn:disabled { filter: grayscale(0.8); opacity: 0.6; cursor: wait; }
   .overlay .btn:hover:not(:disabled) { filter: brightness(1.1); }
   #loadStatus { font-size: 12px; color: #7fc4ff; margin-top: 10px; min-height: 18px; }
-  .optRow { display: flex; gap: 10px; justify-content: center; margin-bottom: 12px; flex-wrap: wrap; }
-  .optRow label { font-size: 12px; color: #a9c8e2; display: flex; align-items: center; gap: 5px; }
-  .optRow select, .optRow input[type=text] {
-    background: rgba(255,255,255,0.08); color: #eaf5ff; border: 1px solid rgba(130,195,255,0.3);
-    border-radius: 6px; padding: 4px 8px; font-size: 12px;
+  .optRow { display: flex; gap: 14px; justify-content: center; margin-bottom: 14px; flex-wrap: wrap; }
+  .optRow label {
+    font-size: 10px; color: #7fa0bd; letter-spacing: 3px;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
   }
-  .optRow input[type=text] { width: 260px; }
+  .optRow select, .optRow input[type=text] {
+    appearance: none; -webkit-appearance: none;
+    background: rgba(12,26,44,0.85); color: #eaf5ff;
+    border: 1px solid rgba(130,195,255,0.35); border-radius: 10px;
+    padding: 10px 14px; font-size: 13px; font-family: inherit;
+  }
+  .optRow select {
+    cursor: pointer; padding-right: 34px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%237fd4ff' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 13px center;
+  }
+  .optRow select:hover:not(:disabled), .optRow input[type=text]:focus {
+    border-color: #7fd4ff; outline: none; box-shadow: 0 0 12px rgba(56,168,240,0.25);
+  }
+  .optRow input[type=text] { width: 280px; }
+  #advBox { margin: 0 0 20px; }
+  #advBox summary {
+    cursor: pointer; font-size: 11px; color: #6f90ad; letter-spacing: 2px;
+    list-style: none; padding: 4px 8px;
+  }
+  #advBox summary::-webkit-details-marker { display: none; }
+  #advBox summary::before { content: '▸ '; color: #38a8f0; }
+  #advBox[open] summary::before { content: '▾ '; }
+  #advBox summary:hover { color: #9fd0ff; }
+  #advBox .optRow { margin-top: 10px; margin-bottom: 6px; }
+  .linkBtn {
+    margin-top: 22px; background: none; border: 1px solid rgba(130,195,255,0.35);
+    color: #9fd0ff; border-radius: 20px; padding: 8px 26px; font-size: 12px;
+    letter-spacing: 2px; cursor: pointer; font-family: inherit;
+  }
+  .linkBtn:hover { border-color: #7fd4ff; color: #dff2ff; background: rgba(80,160,240,0.12); }
   #crashOverlay { display: none; background: rgba(28, 5, 5, 0.8); }
   #crashOverlay h2 { color: #ff6b5e; }
   .smallnote { font-size: 11px; color: #6f90ad; max-width: 620px; margin: 0 auto 10px; }
+
+  /* ===== 遊び方パネル ===== */
+  #helpPanel {
+    position: fixed; inset: 0; z-index: 30; display: none;
+    align-items: center; justify-content: center; padding: 18px;
+    background: rgba(2,6,12,0.72);
+  }
+  #helpPanel.show { display: flex; }
+  .helpCard {
+    background: linear-gradient(180deg, rgba(8,18,32,0.97), rgba(5,12,22,0.97));
+    border: 1px solid rgba(130,195,255,0.3); border-radius: 14px;
+    padding: 22px 26px; max-width: 640px; width: 100%;
+    max-height: 86vh; overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y;
+    color: #eaf5ff; text-align: left; font-size: 13px; line-height: 1.6;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+  }
+  .helpHead { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .helpHead h2 { font-size: 20px; letter-spacing: 3px; }
+  #helpClose {
+    background: none; border: 1px solid rgba(130,195,255,0.35); color: #9fd0ff;
+    border-radius: 50%; width: 32px; height: 32px; font-size: 14px; cursor: pointer; flex: none;
+  }
+  #helpClose:hover { border-color: #7fd4ff; color: #fff; }
+  .helpCard h3 {
+    font-size: 13px; color: #ffd76a; letter-spacing: 2px; margin: 18px 0 6px;
+    border-bottom: 1px solid rgba(130,195,255,0.18); padding-bottom: 4px;
+  }
+  .helpCard p { color: #a9c8e2; margin-bottom: 10px; }
+  .helpCard table { border-collapse: collapse; font-size: 13px; margin-bottom: 6px; }
+  .helpCard td { padding: 3px 14px 3px 0; text-align: left; color: #a9c8e2; }
+  .helpCard td.key { color: #ffd76a; font-weight: 700; white-space: nowrap; padding-right: 8px; }
+  .helpCard .smallnote { margin: 0 0 10px; }
+  .helpFoot { text-align: center; margin-top: 14px; }
+  .helpFoot .linkBtn { margin-top: 0; }
 
   /* ===== タッチ操作UI（スマホ・タブレット）===== */
   #touchUI { position: absolute; inset: 0; display: none; pointer-events: none; z-index: 7; }
@@ -160,15 +233,18 @@
     body.touch #horizonBox { right: 82px; bottom: 210px; transform: scale(0.85); transform-origin: bottom right; }
     body.touch #minimapBox { right: 82px; bottom: 10px; transform: scale(0.85); transform-origin: bottom right; }
   }
-  body.touch .overlay table { display: none; }
-  body.touch .overlay h1 { font-size: 28px; }
-  body.touch .overlay { padding: 12px; justify-content: flex-start; }
-  body.touch .overlay > :first-child { margin-top: max(8px, env(safe-area-inset-top)); }
+  body.touch .overlay h1 { font-size: 36px; letter-spacing: 5px; }
+  body.touch .overlay .tagline { margin-bottom: 22px; }
+  body.touch .overlay { padding: 16px 12px; justify-content: flex-start; }
+  body.touch .overlay > :first-child { margin-top: max(10px, env(safe-area-inset-top)); }
+  body.touch .helpCard { padding: 16px 16px; max-height: 84vh; }
+  body.touch .helpCard table { font-size: 12px; }
+  body.touch .helpCard td { padding: 3px 8px 3px 0; }
   #touchGuide { display: none; }
-  body.touch #touchGuide { display: block; color: #a9c8e2; font-size: 13px; margin: 0 12px 12px; max-width: 560px; }
+  body.touch #touchGuide { display: block; }
   #rotateHint { display: none; }
   @media (orientation: portrait) {
-    body.touch #rotateHint { display: block; color: #ffd76a; font-size: 13px; margin-bottom: 8px; }
+    body.touch #rotateHint { display: block; color: #ffd76a; }
     /* 縦持ち: スロットルを小さく、計器の重なりを解消 */
     body.touch #thrZone { height: 24%; min-height: 130px; bottom: 130px; }
     body.touch #horizonBox { display: none; }
@@ -237,10 +313,9 @@
 <div id="pauseBadge">PAUSE</div>
 
 <div id="startOverlay" class="overlay">
+  <div class="titleBadge">HANEDA RWY 34R ✈ TOKYO</div>
   <h1>TOKYO <span class="thin">FLIGHT</span></h1>
-  <p>実写の東京を飛ぶ。羽田空港 C滑走路（34R）からジェット練習機で離陸し、<br>レインボーブリッジ・東京タワー・スカイツリーを巡る10個のリングをくぐって戻ってこよう。</p>
-  <p id="rotateHint">📱 端末を横向き（ランドスケープ）にすると遊びやすくなります</p>
-  <p id="touchGuide">📱 タッチ操作 — 画面左下をドラッグ＝操縦スティック（<b>下に引くと機首上げ</b>・地上では左右で方向転換）/ 右端の縦バー＝スロットル / 下のボタン＝フラップ・ブレーキ・カメラ切替など。<br>離陸のコツ: FLAP → スロットル全開 → 250km/hでスティックを下に引く</p>
+  <p class="tagline">実写の東京上空を、自分の翼で。</p>
   <div class="optRow">
     <label>建物
       <select id="optBldg">
@@ -256,28 +331,50 @@
       </select>
     </label>
   </div>
-  <div class="optRow">
-    <label>Google Photorealistic 3D Tiles APIキー（任意・上級者向け）
-      <input type="text" id="optGKey" placeholder="空欄なら地理院＋PLATEAUで描画">
-    </label>
-  </div>
-  <p class="smallnote">Googleキーを入れると Google Earth と同じ写真測量3D都市で飛べます（Map Tiles API 有効なキーが必要・従量課金対象）。空欄推奨：APIキー不要の国土地理院航空写真＋PLATEAU実測3D都市でも十分リアルです。</p>
-  <table>
-    <tr><td class="key">↑ / ↓</td><td>ピッチ（↓で機首上げ）</td><td class="key">W / S</td><td>スロットル 増減</td></tr>
-    <tr><td class="key">← / →</td><td>ロール</td><td class="key">A / D</td><td>ラダー / 地上ステア</td></tr>
-    <tr><td class="key">F</td><td>フラップ</td><td class="key">B</td><td>ブレーキ</td></tr>
-    <tr><td class="key">C / 1〜4</td><td>カメラ（追尾・コックピット・管制塔・フライバイ）</td><td class="key">R</td><td>リセット</td></tr>
-    <tr><td class="key">P</td><td>ポーズ</td><td class="key">M / L</td><td>サウンド / 地名ラベル</td></tr>
-  </table>
-  <p class="smallnote">離陸のコツ：F でフラップ T.O. → W 長押しでフルスロットル → 250km/h で ↓キーを引いて機首上げ。通信環境によっては読み込みに少し時間がかかります。</p>
+  <details id="advBox">
+    <summary>詳細設定</summary>
+    <div class="optRow">
+      <label>Google Photorealistic 3D Tiles APIキー（任意・上級者向け）
+        <input type="text" id="optGKey" placeholder="空欄なら地理院＋PLATEAUで描画">
+      </label>
+    </div>
+    <p class="smallnote">空欄推奨。キーを入れると Google Earth と同じ写真測量3D都市で飛べます（詳しくは「遊び方」へ）。</p>
+  </details>
   <button class="btn" id="startBtn" disabled>読み込み中…</button>
   <div id="loadStatus"></div>
+  <button class="linkBtn" id="helpBtn">遊び方・操作方法</button>
 </div>
 
 <div id="crashOverlay" class="overlay">
   <h2>💥 墜落</h2>
   <p id="crashReason"></p>
   <button class="btn" onclick="window.resetFlight()">もう一度飛ぶ（R）</button>
+</div>
+
+<div id="helpPanel">
+  <div class="helpCard">
+    <div class="helpHead">
+      <h2>遊び方</h2>
+      <button id="helpClose" aria-label="閉じる">✕</button>
+    </div>
+    <p>羽田空港 C滑走路（34R）からジェット練習機で離陸し、レインボーブリッジ・東京タワー・スカイツリーを巡る10個のリングをくぐって羽田に戻ってこよう。地形写真も建物も実データの東京です。</p>
+    <p id="rotateHint">📱 端末を横向き（ランドスケープ）にすると遊びやすくなります</p>
+    <p id="touchGuide">📱 <b>タッチ操作</b> — 画面左下をドラッグ＝操縦スティック（<b>下に引くと機首上げ</b>・地上では左右で方向転換）/ 右端の縦バー＝スロットル / 下のボタン＝フラップ・ブレーキ・カメラ切替など。</p>
+    <h3>離陸のコツ</h3>
+    <p>F でフラップ T.O.（タッチは FLAP ボタン）→ スロットル全開 → 250km/h で ↓キー（スティックは下に引く）で機首上げ。通信環境によっては読み込みに少し時間がかかります。</p>
+    <h3>キーボード操作</h3>
+    <table>
+      <tr><td class="key">↑ / ↓</td><td>ピッチ（↓で機首上げ）</td><td class="key">W / S</td><td>スロットル 増減</td></tr>
+      <tr><td class="key">← / →</td><td>ロール</td><td class="key">A / D</td><td>ラダー / 地上ステア</td></tr>
+      <tr><td class="key">F</td><td>フラップ</td><td class="key">B</td><td>ブレーキ</td></tr>
+      <tr><td class="key">C / 1〜4</td><td>カメラ（追尾・コックピット・管制塔・フライバイ）</td><td class="key">R</td><td>リセット</td></tr>
+      <tr><td class="key">P</td><td>ポーズ</td><td class="key">M / L</td><td>サウンド / 地名ラベル</td></tr>
+      <tr><td class="key">H</td><td>スタート画面を開閉（一時停止）</td><td></td><td></td></tr>
+    </table>
+    <h3>Googleモード（上級者向け）</h3>
+    <p class="smallnote">スタート画面の「詳細設定」に Google Photorealistic 3D Tiles の APIキーを入れると、Google Earth と同じ写真測量3D都市で飛べます（Map Tiles API 有効なキーが必要・従量課金対象）。空欄推奨：APIキー不要の国土地理院航空写真＋PLATEAU実測3D都市でも十分リアルです。</p>
+    <div class="helpFoot"><button class="linkBtn" id="helpClose2">閉じる</button></div>
+  </div>
 </div>
 
 <script type="importmap">
@@ -1761,6 +1858,7 @@ function uiAction(code) {
       const ov = document.getElementById('startOverlay');
       const showing = ov.style.display === 'none';
       ov.style.display = showing ? 'flex' : 'none';
+      document.getElementById('helpPanel').classList.remove('show'); // 遊び方パネルは連動して閉じる
       sim.paused = showing; // 説明表示中は一時停止
       hudEls.pause.style.display = 'none';
       break;
@@ -1882,6 +1980,16 @@ const startBtn = document.getElementById('startBtn');
 const loadStatus = document.getElementById('loadStatus');
 let bootDone = false;
 
+// 遊び方パネルの開閉
+{
+  const helpPanel = document.getElementById('helpPanel');
+  const hideHelp = () => helpPanel.classList.remove('show');
+  document.getElementById('helpBtn').addEventListener('click', () => helpPanel.classList.add('show'));
+  document.getElementById('helpClose').addEventListener('click', hideHelp);
+  document.getElementById('helpClose2').addEventListener('click', hideHelp);
+  helpPanel.addEventListener('click', e => { if (e.target === helpPanel) hideHelp(); }); // 背景タップで閉じる
+}
+
 // localStorageはプライベートモード等で例外を投げ得るため安全ラッパ経由で使う
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch (_) { return null; } },
@@ -1948,7 +2056,7 @@ let bootWaitLoops = 0;
 {
   const b = store.get('tf_bldg'); if (b) document.getElementById('optBldg').value = b;
   const p = store.get('tf_plane'); if (p) document.getElementById('optPlane').value = p;
-  const k = store.get('tf_gkey'); if (k) document.getElementById('optGKey').value = k;
+  const k = store.get('tf_gkey'); if (k) { document.getElementById('optGKey').value = k; document.getElementById('advBox').open = true; }
 }
 
 let booting = false;
