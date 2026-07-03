@@ -1001,7 +1001,7 @@ function initGoogle(apiKey) {
 ============================================================ */
 const AIRCRAFT_MODELS = {
   mb339: { url: 'https://cdn.jsdelivr.net/gh/djzoom/airshow@673031a/mb339.glb', length: 11.2, noseAxis: '-x' },
-  j10:   { url: 'https://cdn.jsdelivr.net/gh/djzoom/airshow@673031a/j10.glb',   length: 15.5, noseAxis: '-x' },
+  j10:   { url: 'https://cdn.jsdelivr.net/gh/djzoom/airshow@673031a/j10.glb',   length: 15.5, noseAxis: 'x' },
 };
 const plane = new THREE.Group();       // 物理姿勢を反映するルート
 const planeModel = new THREE.Group();  // モデル向き補正用の子
