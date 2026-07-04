@@ -462,9 +462,9 @@ scene.fog = new THREE.FogExp2(HAZE, 1.35e-5);
 scene.background = HAZE.clone();
 
 const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 1.5, 250000);
-const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
+const renderer = new THREE.WebGLRenderer({ antialias: !IS_TOUCH, logarithmicDepthBuffer: true });
 renderer.setSize(innerWidth, innerHeight);
-renderer.setPixelRatio(Math.min(devicePixelRatio, IS_TOUCH ? 1.8 : 2)); // モバイルGPU負荷を抑える
+renderer.setPixelRatio(Math.min(devicePixelRatio, IS_TOUCH ? 1.4 : 2)); // モバイルGPU/メモリ負荷を抑える
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.1;
 renderer.domElement.className = 'webgl';
@@ -642,8 +642,8 @@ const streamer = {
   wanted: [],                // 今パスで欲しいが未ロードのタイル
   queue: [],
   active: 0,
-  MAX_ACTIVE: 16,
-  SPLIT: IS_TOUCH ? 2.2 : 2.6, // 距離 < タイルサイズ×この係数 で分割（モバイルは軽量化）
+  MAX_ACTIVE: IS_TOUCH ? 8 : 16,
+  SPLIT: IS_TOUCH ? 1.8 : 2.6, // 距離 < タイルサイズ×この係数 で分割（モバイルは軽量化）
   MIN_Z: 8,
   builtCount: 0,
   frustum: new THREE.Frustum(),
@@ -844,14 +844,15 @@ const streamer = {
   },
 
   evict() {
-    // 使われていないメッシュを破棄（上限管理）
-    if (this.builtCount < 750) return;
+    // 使われていないメッシュを破棄（上限管理）。モバイルはメモリ上限対策で大幅に低く保つ
+    const budget = IS_TOUCH ? 220 : 750;
+    if (this.builtCount < budget) return;
     const victims = [];
     for (const n of this.nodes.values()) {
-      if (n.mesh && !n.mesh.visible && n.lastUsed < this.pass - 8 && n.z > this.MIN_Z) victims.push(n);
+      if (n.mesh && !n.mesh.visible && n.lastUsed < this.pass - (IS_TOUCH ? 3 : 8) && n.z > this.MIN_Z) victims.push(n);
     }
     victims.sort((a, b) => a.lastUsed - b.lastUsed);
-    for (const n of victims.slice(0, victims.length - 100 > 0 ? 150 : 50)) {
+    for (const n of victims.slice(0, victims.length - 100 > 0 ? (IS_TOUCH ? 80 : 150) : (IS_TOUCH ? 30 : 50))) {
       terrainGroup.remove(n.mesh);
       n.mesh.geometry.dispose();
       const img = n.mesh.material.map?.image;
@@ -915,6 +916,10 @@ let googleTiles = null;
 const lookaheadCam = camera.clone();
 let lookaheadResW = 0, lookaheadResH = 0;
 function updateLookaheadCamera(dt) {
+  // モバイルはWebContentプロセスのメモリ上限(highwater)超過によるOSの強制終了を避けるため、
+  // 2視点分のタイルを同時保持することになる先読み自体を無効化する（実測でWebContentが約1.6GBまで
+  // 膨れ上がりiOSにkillされる事例を確認済み）。ビルの表示が数瞬遅れる方が、強制終了より遥かにまし。
+  if (IS_TOUCH) return;
   const V = sim.vel.length();
   // 速度に応じて2〜6秒先を見る（低速・地上では実カメラのすぐ先を見るだけで十分）
   const seconds = clamp(V * 0.03, 1.5, 6);
@@ -944,8 +949,11 @@ function makeTilesRenderer(url, errorTarget) {
   }));
   t.setCamera(camera);
   t.setResolutionFromRenderer(camera, renderer);
-  t.setCamera(lookaheadCam);
-  t.setResolution(lookaheadCam, (innerWidth || 640) * 0.5, (innerHeight || 480) * 0.5);
+  if (!IS_TOUCH) {
+    // モバイルは2視点先読みによるメモリ膨張(highwater kill)を避けるため登録しない
+    t.setCamera(lookaheadCam);
+    t.setResolution(lookaheadCam, (innerWidth || 640) * 0.5, (innerHeight || 480) * 0.5);
+  }
   t.errorTarget = errorTarget;
   if (tilesets.length) {
     t.lruCache = tilesets[0].lruCache;
@@ -953,12 +961,13 @@ function makeTilesRenderer(url, errorTarget) {
     t.parseQueue = tilesets[0].parseQueue;
     if (tilesets[0].processNodeQueue) t.processNodeQueue = tilesets[0].processNodeQueue;
   } else {
-    // 10区で共有するため既定より拡大（モバイルはメモリ上限が厳しいので控えめに）
+    // 10区で共有するため既定より拡大（モバイルはWebContentプロセスのメモリ上限[highwater]による
+    // 強制終了が実機で確認されたため、大幅に控えめにする。見た目より安定性を優先）
     try {
-      t.lruCache.maxSize = IS_TOUCH ? 900 : 1800;
-      t.lruCache.minSize = IS_TOUCH ? 600 : 1200;
-      t.downloadQueue.maxJobs = IS_TOUCH ? 16 : 24; // 低空での取りこぼしを減らすため同時DL数を増強
-      t.parseQueue.maxJobs = IS_TOUCH ? 5 : 8;
+      t.lruCache.maxSize = IS_TOUCH ? 350 : 1800;
+      t.lruCache.minSize = IS_TOUCH ? 220 : 1200;
+      t.downloadQueue.maxJobs = IS_TOUCH ? 10 : 24;
+      t.parseQueue.maxJobs = IS_TOUCH ? 3 : 8;
       // 既定はrequestAnimationFrame駆動＝非表示タブで停止するため、タイマー駆動に変更
       const timerSched = cb => setTimeout(cb, 16);
       t.downloadQueue.schedulingCallback = timerSched;
@@ -973,7 +982,7 @@ function makeTilesRenderer(url, errorTarget) {
 function initPlateau(lodKey) {
   for (const [name, url] of PLATEAU_WARDS[lodKey]) {
     try {
-      const t = makeTilesRenderer(url, IS_TOUCH ? 24 : 16); // モバイルは粗めのLODで軽量化
+      const t = makeTilesRenderer(url, IS_TOUCH ? 40 : 16); // モバイルは粗めのLODで大幅に軽量化（メモリ上限対策）
       t.addEventListener('load-error', e => console.warn('PLATEAU load-error', name, e));
     } catch (e) { console.warn('PLATEAU init failed', name, e); }
   }
@@ -990,8 +999,10 @@ function initGoogle(apiKey) {
     }));
     googleTiles.setCamera(camera);
     googleTiles.setResolutionFromRenderer(camera, renderer);
-    googleTiles.setCamera(lookaheadCam);
-    googleTiles.setResolution(lookaheadCam, (innerWidth || 640) * 0.5, (innerHeight || 480) * 0.5);
+    if (!IS_TOUCH) {
+      googleTiles.setCamera(lookaheadCam);
+      googleTiles.setResolution(lookaheadCam, (innerWidth || 640) * 0.5, (innerHeight || 480) * 0.5);
+    }
     let googleFellBack = false;
     googleTiles.addEventListener('load-error', e => {
       console.warn('Google tiles error', e);
