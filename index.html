@@ -845,7 +845,7 @@ const streamer = {
 
   evict() {
     // 使われていないメッシュを破棄（上限管理）。モバイルはメモリ上限対策で大幅に低く保つ
-    const budget = IS_TOUCH ? 220 : 750;
+    const budget = lowMemoryMode ? 60 : (IS_TOUCH ? 220 : 750);
     if (this.builtCount < budget) return;
     const victims = [];
     for (const n of this.nodes.values()) {
@@ -853,16 +853,27 @@ const streamer = {
     }
     victims.sort((a, b) => a.lastUsed - b.lastUsed);
     for (const n of victims.slice(0, victims.length - 100 > 0 ? (IS_TOUCH ? 80 : 150) : (IS_TOUCH ? 30 : 50))) {
-      terrainGroup.remove(n.mesh);
-      n.mesh.geometry.dispose();
-      const img = n.mesh.material.map?.image;
-      n.mesh.material.map?.dispose();
-      n.mesh.material.dispose();
-      if (img && img.close) img.close();
-      n.mesh = null;
-      n.state = 'empty';
-      this.builtCount--;
+      this._disposeNode(n);
     }
+  },
+  _disposeNode(n) {
+    terrainGroup.remove(n.mesh);
+    n.mesh.geometry.dispose();
+    const img = n.mesh.material.map?.image;
+    n.mesh.material.map?.dispose();
+    n.mesh.material.dispose();
+    if (img && img.close) img.close();
+    n.mesh = null;
+    n.state = 'empty';
+    this.builtCount--;
+  },
+  // iOSのメモリ警告を受けた際に即座に呼ぶ、通常のevict()より遠慮のない破棄
+  emergencyEvict() {
+    const victims = [];
+    for (const n of this.nodes.values()) {
+      if (n.mesh && !n.mesh.visible && n.z > this.MIN_Z) victims.push(n);
+    }
+    for (const n of victims) this._disposeNode(n);
   },
   pendingCount() {
     return this.active + this.wanted.filter(w => w.node.state === 'empty').length;
@@ -899,6 +910,13 @@ const PLATEAU_WARDS = {
     ['渋谷区', 'https://assets.cms.plateau.reearth.io/assets/cf/26763c-faae-41b3-b110-2a4dd602f250/13113_shibuya-ku_pref_2025_citygml_1_op_bldg_3dtiles_13113_shibuya-ku_lod1/tileset.json'],
     ['新宿区', 'https://assets.cms.plateau.reearth.io/assets/bd/858f21-55cb-46da-afcf-885d44eee90f/13104_shinjuku-ku_pref_2025_citygml_1_op_bldg_3dtiles_13104_shinjuku-ku_lod1/tileset.json'],
   ],
+};
+// 各区の概算中心座標（モバイルで「機体に近い区だけ」を選ぶための距離計算用）
+const WARD_CENTERS = {
+  '大田区': [35.5613, 139.7161], '品川区': [35.6092, 139.7302], '港区': [35.6581, 139.7514],
+  '中央区': [35.6706, 139.7720], '千代田区': [35.6940, 139.7536], '江東区': [35.6729, 139.8172],
+  '墨田区': [35.7107, 139.8015], '台東区': [35.7127, 139.7800], '渋谷区': [35.6640, 139.6982],
+  '新宿区': [35.6938, 139.7036],
 };
 // PLATEAU/Googleは楕円体高ベース。東京のジオイド高≈+39mを差し引いて地表をy≈0へ
 const ELLIPSOID_OFFSET = 39.5;
@@ -979,10 +997,75 @@ function makeTilesRenderer(url, errorTarget) {
   tilesets.push(t);
   return t;
 }
+// モバイル用: 10区すべてを常時保持せず、機体に近い数区だけを動的に読み込む/破棄する
+const MOBILE_MAX_WARDS = 3;
+let mobileWardLod = null;
+let lowMemoryMode = false; // iOSのメモリ警告を受けたら true にし、以後さらに切り詰める
+const activeWardTilesets = new Map(); // 区名 -> TilesRenderer
+function updateMobileWards() {
+  if (!mobileWardLod) return;
+  const ll = enuToLL(sim.pos.x, sim.pos.z);
+  const withDist = PLATEAU_WARDS[mobileWardLod].map(([name, url]) => {
+    const c = WARD_CENTERS[name];
+    const d = c ? Math.hypot((ll.lat - c[0]) * M_PER_LAT, (ll.lon - c[1]) * M_PER_LON) : Infinity;
+    return { name, url, dist: d };
+  }).sort((a, b) => a.dist - b.dist);
+  const maxWards = lowMemoryMode ? 1 : MOBILE_MAX_WARDS;
+  const wanted = withDist.slice(0, maxWards);
+  // 先に必要な区を追加（既存の共有キャッシュが常に生き続けるよう、削除より先に追加する）
+  for (const w of wanted) {
+    if (!activeWardTilesets.has(w.name)) {
+      try {
+        const t = makeTilesRenderer(w.url, 40);
+        t.addEventListener('load-error', e => console.warn('PLATEAU load-error', w.name, e));
+        activeWardTilesets.set(w.name, t);
+      } catch (e) { console.warn('PLATEAU init failed', w.name, e); }
+    }
+  }
+  // 不要になった区を破棄してメモリを解放
+  const wantedNames = new Set(wanted.map(w => w.name));
+  for (const [name, t] of activeWardTilesets) {
+    if (!wantedNames.has(name)) {
+      tilesGroupWrapper.remove(t.group);
+      try { t.dispose(); } catch (_) {}
+      const idx = tilesets.indexOf(t);
+      if (idx >= 0) tilesets.splice(idx, 1);
+      activeWardTilesets.delete(name);
+    }
+  }
+}
+
+// iOSネイティブ側からの「メモリ警告」を受けて、強制終了される前に手持ちのタイルを
+// 積極的に解放する。ネイティブアプリ(Capacitor)でのみ発火し、Web版では何もしない。
+function handleLowMemory() {
+  console.warn('[TokyoFlight] iOSメモリ警告を受信 — タイルを積極的に解放します');
+  lowMemoryMode = true;
+  try { streamer.emergencyEvict(); } catch (_) {}
+  try { updateMobileWards(); } catch (_) {}
+  showMessage('端末のメモリ節約のため表示を簡略化しました', 4000);
+}
+function registerMemoryWarningListener() {
+  try {
+    const plugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.MemoryWarning;
+    if (plugin && plugin.addListener) {
+      plugin.addListener('memoryWarning', handleLowMemory);
+    } else if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+      setTimeout(registerMemoryWarningListener, 500);
+    }
+  } catch (_) {}
+}
+if (IS_TOUCH) registerMemoryWarningListener();
+
 function initPlateau(lodKey) {
+  if (IS_TOUCH) {
+    // 全区を同時ロードせず、機体の位置に応じて近い区だけを維持する（メモリ上限対策）
+    mobileWardLod = lodKey;
+    updateMobileWards();
+    return;
+  }
   for (const [name, url] of PLATEAU_WARDS[lodKey]) {
     try {
-      const t = makeTilesRenderer(url, IS_TOUCH ? 40 : 16); // モバイルは粗めのLODで大幅に軽量化（メモリ上限対策）
+      const t = makeTilesRenderer(url, 16);
       t.addEventListener('load-error', e => console.warn('PLATEAU load-error', name, e));
     } catch (e) { console.warn('PLATEAU init failed', name, e); }
   }
@@ -2067,6 +2150,7 @@ async function boot() {
 
   // 初期読み込みの進行表示: スポーン地点周辺のタイルが揃うまで
   spawnPose();
+  updateMobileWards(); // 実際のスポーン位置確定後に区の選定をやり直す
   camera.position.set(sim.pos.x - 60, sim.pos.y + 30, sim.pos.z + 80);
   camera.lookAt(sim.pos.x, sim.pos.y, sim.pos.z - 200);
   camera.updateMatrixWorld();
@@ -2144,6 +2228,7 @@ startBtn.addEventListener('click', async () => {
 const clock = new THREE.Clock();
 let frameCount = 0;
 let streamTimer = 0;
+let wardCheckTimer = 0;
 
 // ウィンドウ/タイルの解像度を常に有効な値に保つ（変更時のみ反映される）
 function syncResolution() {
@@ -2213,6 +2298,9 @@ function animate() {
     const tx = Math.floor(lon2tx(ll.lon, 14)), ty = Math.floor(lat2ty(ll.lat, 14));
     for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) demStore.request(14, tx + dx2, ty + dy2);
   }
+  // モバイル: 機体に近い区だけを保持（数秒おきに再判定してメモリ膨張を防ぐ）
+  wardCheckTimer -= dt;
+  if (wardCheckTimer <= 0) { wardCheckTimer = 4; updateMobileWards(); }
   for (const t of tilesets) { try { t.update(); } catch (_) {} }
 
   if (sim.running) updateHUD();
@@ -2227,6 +2315,8 @@ animate();
 window.__debug = {
   sim, ctl, keys, rings, streamer, demStore, THREE,
   plane, planeModel, camera, tilesets, touch, lookaheadCam,
+  updateMobileWards, activeWardTilesets, handleLowMemory,
+  get lowMemoryMode() { return lowMemoryMode; },
   llToENU, enuToLL, groundHeightENU,
   setCamPose(px, py, pz, tx, ty, tz, fov = 45) {
     camMode = 9;
