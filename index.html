@@ -409,6 +409,20 @@ const IS_TOUCH = matchMedia('(pointer: coarse)').matches ||
   new URLSearchParams(location.search).has('touch');
 if (IS_TOUCH) document.body.classList.add('touch');
 
+// PLATEAU建物タイルのerrorTarget（画面上の許容誤差px）。
+// 各区のrootは「区全体の粗いメッシュ」を持ち、REPLACE方式でこの誤差を下回るまで細分化する。
+// 値を上げる = 粗いメッシュで満足→細分化を近距離だけに限定→街全体が速く広く出る（ブロック調）。
+// 値を下げる = 遠方から精細化→見た目は良いがDL/メモリ増で初期表示が遅くなる。
+// ウェブ版は帯域・メモリに余裕があるが「初めから街が見えている」ことを最優先し、
+// 近距離detailの取り合いを減らして10区の粗いrootを先に出す方向（既定を引き上げ）にする。
+// ?err=NN で実機ブラウザ上から微調整可能。
+const PLATEAU_ERROR_TARGET = (() => {
+  const q = parseFloat(new URLSearchParams(location.search).get('err'));
+  if (isFinite(q) && q > 0) return q;
+  // モバイルはメモリ安全のため従来の粗め設定(40)を維持。ウェブは「街を即座に広く」出すため16→28に引き上げ。
+  return IS_TOUCH ? 40 : 28;
+})();
+
 // 羽田空港 C滑走路 16L/34R（OpenStreetMap実測: 34R末端 → 16L末端）
 const RWY_A = { lat: 35.53923, lon: 139.80546 }; // 34R スレッショルド（南東端）
 const RWY_B = { lat: 35.56633, lon: 139.78623 }; // 16L 側（北西端）
@@ -983,8 +997,8 @@ function makeTilesRenderer(url, errorTarget) {
     // 10区で共有するため既定より拡大（モバイルはWebContentプロセスのメモリ上限[highwater]による
     // 強制終了が実機で確認されたため、大幅に控えめにする。見た目より安定性を優先）
     try {
-      t.lruCache.maxSize = IS_TOUCH ? 350 : 1800;
-      t.lruCache.minSize = IS_TOUCH ? 220 : 1200;
+      t.lruCache.maxSize = IS_TOUCH ? 350 : 3200; // ウェブは全区の粗いroot＋近距離detailを常駐させ再DL由来のちらつきを防ぐ
+      t.lruCache.minSize = IS_TOUCH ? 220 : 2400;
       t.downloadQueue.maxJobs = IS_TOUCH ? 20 : 24; // 区が追加された直後の読み込みを速める
       t.parseQueue.maxJobs = IS_TOUCH ? 7 : 8; // DRACO解凍/glTFパースはCPU律速。メモリ上限(lruCache)は変えず処理速度だけ上げる
       // 既定はrequestAnimationFrame駆動＝非表示タブで停止するため、タイマー駆動に変更
@@ -1041,7 +1055,7 @@ function updateMobileWards() {
   for (const w of wanted) {
     if (!activeWardTilesets.has(w.name)) {
       try {
-        const t = makeTilesRenderer(w.url, 40);
+        const t = makeTilesRenderer(w.url, PLATEAU_ERROR_TARGET);
         t.addEventListener('load-error', e => console.warn('PLATEAU load-error', w.name, e));
         activeWardTilesets.set(w.name, t);
       } catch (e) { console.warn('PLATEAU init failed', w.name, e); }
@@ -1090,7 +1104,7 @@ function initPlateau(lodKey) {
   }
   for (const [name, url] of PLATEAU_WARDS[lodKey]) {
     try {
-      const t = makeTilesRenderer(url, 16);
+      const t = makeTilesRenderer(url, PLATEAU_ERROR_TARGET);
       t.addEventListener('load-error', e => console.warn('PLATEAU load-error', name, e));
     } catch (e) { console.warn('PLATEAU init failed', name, e); }
   }
