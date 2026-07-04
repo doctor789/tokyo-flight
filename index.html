@@ -1475,17 +1475,22 @@ function physics(dt) {
   }
 
   // 建物衝突（前方短距離レイ）。Googleモードは地面もタイルに含まれるため低高度では判定しない
-  physStep++;
-  if (!sim.onGround && !sim.crashed && V > 20 && tilesGroupWrapper.children.length && physStep % 2 === 0 &&
-      (!googleTiles || pos.y - gH > 55)) {
-    _tmpV.copy(vel).normalize();
-    _ray.set(pos, _tmpV);
-    _raycaster.near = 0;
-    _raycaster.far = Math.max(12, V * 0.12);
-    try {
-      const hits = _raycaster.intersectObject(tilesGroupWrapper, true);
-      if (hits.length) crash('ビルに激突した');
-    } catch (_) {}
+  // 物理ステップ数ではなく実時間で間引く：描画が重い時ほどステップ数が増えて
+  // かえって判定回数が増える「悪循環」を防ぐため。モバイルはCPUが弱いのでさらに間隔を空ける。
+  collisionCheckTimer -= dt;
+  if (collisionCheckTimer <= 0) {
+    collisionCheckTimer = IS_TOUCH ? 0.22 : 0.1;
+    if (!sim.onGround && !sim.crashed && V > 20 && tilesGroupWrapper.children.length &&
+        (!googleTiles || pos.y - gH > 55)) {
+      _tmpV.copy(vel).normalize();
+      _ray.set(pos, _tmpV);
+      _raycaster.near = 0;
+      _raycaster.far = Math.max(IS_TOUCH ? 40 : 12, V * (IS_TOUCH ? 0.3 : 0.12));
+      try {
+        const hits = _raycaster.intersectObject(tilesGroupWrapper, true);
+        if (hits.length) crash('ビルに激突した');
+      } catch (_) {}
+    }
   }
 
   // リング判定
@@ -1514,7 +1519,7 @@ function physics(dt) {
 const _raycaster = new THREE.Raycaster();
 const _ray = _raycaster.ray;
 _raycaster.firstHitOnly = true;
-let physStep = 0;
+let collisionCheckTimer = 0;
 
 /* ============================================================
    カメラ
