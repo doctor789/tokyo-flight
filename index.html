@@ -909,6 +909,31 @@ scene.add(tilesGroupWrapper);
 const tilesets = [];
 let googleTiles = null;
 
+// 進行方向の先読み用「幽霊カメラ」: 実カメラとは別に3D Tilesの詳細度計算だけに使い、
+// 機体の速度ベクトル方向・数秒先の位置に置くことで、低空・高速飛行時にビルタイルの
+// 読み込み（ダウンロード→解析→表示）を到達前に済ませておく。描画には一切使わない。
+const lookaheadCam = camera.clone();
+let lookaheadResW = 0, lookaheadResH = 0;
+function updateLookaheadCamera(dt) {
+  const V = sim.vel.length();
+  // 速度に応じて2〜6秒先を見る（低速・地上では実カメラのすぐ先を見るだけで十分）
+  const seconds = clamp(V * 0.03, 1.5, 6);
+  const dist = clamp(V * seconds, 60, IS_TOUCH ? 2000 : 3500); // モバイルは帯域・メモリを考慮して先読み距離を抑える
+  _tmpV.copy(sim.vel);
+  if (V > 1) _tmpV.normalize(); else _tmpV.set(0, 0, -1).applyQuaternion(sim.q);
+  lookaheadCam.position.copy(sim.pos).addScaledVector(_tmpV, dist);
+  lookaheadCam.position.y += 40; // 見下ろし気味にして地表付近のタイルも拾う
+  lookaheadCam.quaternion.copy(camera.quaternion);
+  lookaheadCam.fov = 70; // 通常カメラより広めにして周辺タイルも先読み
+  lookaheadCam.updateProjectionMatrix();
+  lookaheadCam.updateMatrixWorld();
+  const w = innerWidth || 640, h = innerHeight || 480;
+  if (w !== lookaheadResW || h !== lookaheadResH) {
+    lookaheadResW = w; lookaheadResH = h;
+    for (const t of tilesets) { try { t.setResolution(lookaheadCam, w * 0.5, h * 0.5); } catch (_) {} } // 先読み専用なので低解像度で十分
+  }
+}
+
 function makeTilesRenderer(url, errorTarget) {
   const t = url ? new TilesRenderer(url) : new TilesRenderer();
   t.registerPlugin(new GLTFExtensionsPlugin({ dracoLoader }));
@@ -919,6 +944,8 @@ function makeTilesRenderer(url, errorTarget) {
   }));
   t.setCamera(camera);
   t.setResolutionFromRenderer(camera, renderer);
+  t.setCamera(lookaheadCam);
+  t.setResolution(lookaheadCam, (innerWidth || 640) * 0.5, (innerHeight || 480) * 0.5);
   t.errorTarget = errorTarget;
   if (tilesets.length) {
     t.lruCache = tilesets[0].lruCache;
@@ -928,10 +955,10 @@ function makeTilesRenderer(url, errorTarget) {
   } else {
     // 10区で共有するため既定より拡大（モバイルはメモリ上限が厳しいので控えめに）
     try {
-      t.lruCache.maxSize = IS_TOUCH ? 700 : 1400;
-      t.lruCache.minSize = IS_TOUCH ? 450 : 900;
-      t.downloadQueue.maxJobs = 12;
-      t.parseQueue.maxJobs = 4;
+      t.lruCache.maxSize = IS_TOUCH ? 900 : 1800;
+      t.lruCache.minSize = IS_TOUCH ? 600 : 1200;
+      t.downloadQueue.maxJobs = IS_TOUCH ? 16 : 24; // 低空での取りこぼしを減らすため同時DL数を増強
+      t.parseQueue.maxJobs = IS_TOUCH ? 5 : 8;
       // 既定はrequestAnimationFrame駆動＝非表示タブで停止するため、タイマー駆動に変更
       const timerSched = cb => setTimeout(cb, 16);
       t.downloadQueue.schedulingCallback = timerSched;
@@ -963,6 +990,8 @@ function initGoogle(apiKey) {
     }));
     googleTiles.setCamera(camera);
     googleTiles.setResolutionFromRenderer(camera, renderer);
+    googleTiles.setCamera(lookaheadCam);
+    googleTiles.setResolution(lookaheadCam, (innerWidth || 640) * 0.5, (innerHeight || 480) * 0.5);
     let googleFellBack = false;
     googleTiles.addEventListener('load-error', e => {
       console.warn('Google tiles error', e);
@@ -2035,6 +2064,7 @@ async function boot() {
     // バックグラウンドタブ等でrAFが止まっていても読み込みが進むよう明示的に回す
     camera.updateMatrixWorld();
     syncResolution();
+    updateLookaheadCamera(0.4);
     streamer.update(camera.position, Math.max(camera.position.y, 30));
     for (const t of tilesets) { try { t.update(); } catch (_) {} }
     const pend = streamer.pendingCount() + demStore.pending;
@@ -2154,6 +2184,7 @@ function animate() {
 
   updateCamera(dt);
   camera.updateMatrixWorld();
+  updateLookaheadCamera(dt); // 進行方向先のビルタイルを事前ダウンロード
 
   // 地形ストリーミング（0.25秒ごと）
   streamTimer -= dt;
@@ -2179,7 +2210,7 @@ animate();
 ============================================================ */
 window.__debug = {
   sim, ctl, keys, rings, streamer, demStore, THREE,
-  plane, planeModel, camera, tilesets, touch,
+  plane, planeModel, camera, tilesets, touch, lookaheadCam,
   llToENU, enuToLL, groundHeightENU,
   setCamPose(px, py, pz, tx, ty, tz, fov = 45) {
     camMode = 9;
@@ -2196,6 +2227,7 @@ window.__debug = {
     updateCamera(0.016);
     camera.updateMatrixWorld();
     syncResolution();
+    updateLookaheadCamera(0.016);
     streamer.update(camera.position, Math.max(camera.position.y, 30));
     for (const t of tilesets) { try { t.update(); } catch (_) {} }
     if (sim.running) updateHUD();
