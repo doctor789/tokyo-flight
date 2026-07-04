@@ -328,6 +328,7 @@
       <select id="optPlane">
         <option value="mb339">MB-339 ジェット練習機（高精細）</option>
         <option value="j10">J-10 戦闘機（軽量）</option>
+        <option value="prop">低速プロペラ機（観光向け・建物の表示が追いつきやすい）</option>
       </select>
     </label>
   </div>
@@ -361,7 +362,7 @@
     <p id="rotateHint">📱 端末を横向き（ランドスケープ）にすると遊びやすくなります</p>
     <p id="touchGuide">📱 <b>タッチ操作</b> — 画面左下をドラッグ＝操縦スティック（<b>下に引くと機首上げ</b>・地上では左右で方向転換）/ 右端の縦バー＝スロットル / 下のボタン＝フラップ・ブレーキ・カメラ切替など。</p>
     <h3>離陸のコツ</h3>
-    <p>F でフラップ T.O.（タッチは FLAP ボタン）→ スロットル全開 → 250km/h で ↓キー（スティックは下に引く）で機首上げ。通信環境によっては読み込みに少し時間がかかります。</p>
+    <p>F でフラップ T.O.（タッチは FLAP ボタン）→ スロットル全開 → 十分に加速したら ↓キー（スティックは下に引く）で機首上げ。通信環境によっては読み込みに少し時間がかかります。</p>
     <h3>キーボード操作</h3>
     <table>
       <tr><td class="key">↑ / ↓</td><td>ピッチ（↓で機首上げ）</td><td class="key">W / S</td><td>スロットル 増減</td></tr>
@@ -1136,6 +1137,14 @@ function initGoogle(apiKey) {
 const AIRCRAFT_MODELS = {
   mb339: { url: 'https://cdn.jsdelivr.net/gh/djzoom/airshow@673031a/mb339.glb', length: 11.2, noseAxis: '-x' },
   j10:   { url: 'https://cdn.jsdelivr.net/gh/djzoom/airshow@673031a/j10.glb',   length: 15.5, noseAxis: 'x' },
+  // 低速機: 専用モデルは用意せずMB-339の機体を軽量サイズに縮小して流用
+  prop:  { url: 'https://cdn.jsdelivr.net/gh/djzoom/airshow@673031a/mb339.glb', length: 7.5, noseAxis: '-x' },
+};
+// 機体ごとの飛行物理プロファイル（低速機は建物タイルの表示が追いつくよう最高速を大きく落としてある）
+// vRotate: この速度から機首上げの舵が効き始める（+vRotateSpanで全開）。低速機は最高地上速度が低いため下げてある
+const AIRCRAFT_PHYSICS = {
+  default: { mass: 4600, S: 19.3, CL0: 0.14, CLa: 5.0, alphaStall: rad(15), CD0: 0.022, kInd: 0.062, Tmax: 26000, vRotate: 45, vRotateSpan: 18 },
+  prop:    { mass: 1000, S: 15.0, CL0: 0.30, CLa: 5.0, alphaStall: rad(16), CD0: 0.032, kInd: 0.06,  Tmax: 1800,  vRotate: 30, vRotateSpan: 8 },
 };
 const plane = new THREE.Group();       // 物理姿勢を反映するルート
 const planeModel = new THREE.Group();  // モデル向き補正用の子
@@ -1169,6 +1178,7 @@ function buildFallbackJet() {
 
 function loadAircraft(kind) {
   const spec = AIRCRAFT_MODELS[kind] || AIRCRAFT_MODELS.mb339;
+  Object.assign(AIR, AIRCRAFT_PHYSICS[kind] || AIRCRAFT_PHYSICS.default);
   const loader = new GLTFLoader();
   loader.setDRACOLoader(dracoLoader);
   return new Promise(resolve => {
@@ -1338,6 +1348,7 @@ const AIR = {
 const FLAP_CL = [0, 0.32, 0.62];
 const FLAP_CD = [0, 0.016, 0.05];
 const FLAP_NAME = ['UP', 'T.O.', 'LDG'];
+let currentPlaneKind = 'mb339'; // 機体ごとに離陸速度の目安メッセージを変えるため保持
 
 const sim = {
   pos: new THREE.Vector3(),
@@ -1403,7 +1414,9 @@ function resetFlight() {
   }
   document.getElementById('crashOverlay').style.display = 'none';
   document.getElementById('ringCount').textContent = '0';
-  showMessage('W長押しでスロットル全開 → 250km/hで↓キー', 4000);
+  showMessage(currentPlaneKind === 'prop'
+    ? 'W長押しでスロットル全開 → 120km/hで↓キー'
+    : 'W長押しでスロットル全開 → 250km/hで↓キー', 4000);
 }
 window.resetFlight = resetFlight;
 
@@ -1521,7 +1534,7 @@ function physics(dt) {
 
   if (sim.onGround) {
     const canLift = lift * Math.max(_liftDir.y, 0) + thrust * _fwd.y > AIR.mass * AIR.g;
-    if (canLift && V > 40) {
+    if (canLift && V > AIR.vRotate - 5) {
       sim.onGround = false;
       sim.hasFlown = true;
       pos.y = contactY + 0.05;
@@ -1531,7 +1544,7 @@ function physics(dt) {
       _euler.setFromQuaternion(q, 'YXZ');
       _euler.z *= Math.exp(-dt * 8);
       if (_euler.x < 0) _euler.x *= Math.exp(-dt * 10);
-      const rotAuth = clamp((V - 45) / 18, 0, 1);
+      const rotAuth = clamp((V - AIR.vRotate) / AIR.vRotateSpan, 0, 1);
       _euler.x = Math.min(_euler.x, rad(12) * rotAuth + rad(0.3));
       const steer = clamp(1.6 - V * 0.02, 0.15, 1.6);
       _euler.y += -ctl.rudder * steer * dt * clamp(V / 4, 0, 1);
@@ -2139,6 +2152,7 @@ const store = {
 async function boot() {
   const bldgOpt = document.getElementById('optBldg').value;
   const planeOpt = document.getElementById('optPlane').value;
+  currentPlaneKind = planeOpt;
   const gKey = document.getElementById('optGKey').value.trim();
   store.set('tf_bldg', bldgOpt);
   store.set('tf_plane', planeOpt);
@@ -2324,7 +2338,8 @@ animate();
    デバッグフック（自動テスト用・プレイに影響なし）
 ============================================================ */
 window.__debug = {
-  sim, ctl, keys, rings, streamer, demStore, THREE,
+  sim, ctl, keys, rings, streamer, demStore, THREE, AIR, AIRCRAFT_PHYSICS,
+  get planeKind() { return currentPlaneKind; },
   plane, planeModel, camera, tilesets, touch, lookaheadCam,
   updateMobileWards, activeWardTilesets, handleLowMemory,
   get lowMemoryMode() { return lowMemoryMode; },
