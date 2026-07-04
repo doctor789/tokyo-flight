@@ -985,8 +985,8 @@ function makeTilesRenderer(url, errorTarget) {
     try {
       t.lruCache.maxSize = IS_TOUCH ? 350 : 1800;
       t.lruCache.minSize = IS_TOUCH ? 220 : 1200;
-      t.downloadQueue.maxJobs = IS_TOUCH ? 14 : 24; // 区が追加された直後の読み込みを速める
-      t.parseQueue.maxJobs = IS_TOUCH ? 4 : 8;
+      t.downloadQueue.maxJobs = IS_TOUCH ? 20 : 24; // 区が追加された直後の読み込みを速める
+      t.parseQueue.maxJobs = IS_TOUCH ? 7 : 8; // DRACO解凍/glTFパースはCPU律速。メモリ上限(lruCache)は変えず処理速度だけ上げる
       // 既定はrequestAnimationFrame駆動＝非表示タブで停止するため、タイマー駆動に変更
       const timerSched = cb => setTimeout(cb, 16);
       t.downloadQueue.schedulingCallback = timerSched;
@@ -1003,9 +1003,22 @@ const MOBILE_MAX_WARDS = 3;
 let mobileWardLod = null;
 let lowMemoryMode = false; // iOSのメモリ警告を受けたら true にし、以後さらに切り詰める
 const activeWardTilesets = new Map(); // 区名 -> TilesRenderer
+const _wardFwd = new THREE.Vector3();
+const WARD_LOOKAHEAD_SEC = 75; // この秒数だけ先にいる区を「近く」とみなして早めに読み込む（固定距離だと機体速度によって過不足が出るため時間基準にしてある）
 function updateMobileWards() {
   if (!mobileWardLod) return;
   const V = sim.vel.length();
+  // 静止中（離陸前の待機・ロード画面）は機体の向き＝滑走路方位を仮の進行方向として扱い、
+  // 動き出す前からその先の区の読み込みを始めておく
+  let dirX, dirZ, effSpeed;
+  if (V > 3) {
+    dirX = sim.vel.x / V; dirZ = sim.vel.z / V; effSpeed = V;
+  } else {
+    _wardFwd.set(0, 0, -1).applyQuaternion(sim.q);
+    const len = Math.hypot(_wardFwd.x, _wardFwd.z) || 1;
+    dirX = _wardFwd.x / len; dirZ = _wardFwd.z / len;
+    effSpeed = 15; // 離陸前は巡航速度を仮定して先読みする
+  }
   const withDist = PLATEAU_WARDS[mobileWardLod].map(([name, url]) => {
     const c = WARD_CENTERS[name];
     if (!c) return { name, url, dist: Infinity };
@@ -1016,9 +1029,9 @@ function updateMobileWards() {
     // （区の切り替えを単純な現在距離だけで判断すると、接近してから読み込みが
     // 間に合わず「直前でいきなり現れる」ことになるため、先読み分を距離に加味する）
     let aheadBonus = 0;
-    if (V > 5 && rawDist > 1) {
-      const cosAngle = (dx * sim.vel.x + dz * sim.vel.z) / (rawDist * V);
-      aheadBonus = Math.max(0, cosAngle) * 4000; // 真正面なら最大4km分「近く」とみなす
+    if (rawDist > 1) {
+      const cosAngle = (dx * dirX + dz * dirZ) / rawDist;
+      aheadBonus = Math.max(0, cosAngle) * effSpeed * WARD_LOOKAHEAD_SEC;
     }
     return { name, url, dist: rawDist - aheadBonus };
   }).sort((a, b) => a.dist - b.dist);
